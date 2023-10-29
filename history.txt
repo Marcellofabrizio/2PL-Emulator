@@ -1,0 +1,1 @@
+ls1[x]-lx1[y]-r1[x]-lx3[z]-ls2[x]-r2[x]-w3[z]-us1[x]-us2[x]-w1[y]-ux1[y]-c1-ux3[z]-c3-ux2[y]-c2
