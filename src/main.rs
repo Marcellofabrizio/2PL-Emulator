@@ -16,21 +16,21 @@ enum Operation {
 fn main() {
     let contents = fs::read_to_string("history.txt".to_string()).expect("File not found");
 
-    let re = Regex::new(r"(?P<command>[a-z]+)(?P<transaction>\d+)").unwrap();
+    let re =
+        Regex::new(r"(?x)
+            (?<command>[a-z]+) # O comando: read, write ou commit
+            (?<transaction>\d+) # O número da transação
+            ((?:[\(\[])(?<resource>\S+)(?:[\)\]]))? # Qualquer texto sem espaço entre parenteses ou colchetes
+        ").unwrap();
 
     let operations: Vec<Operation> = contents
         .split("-")
         .map(|operation| {
-            let parts: Vec<&str> = operation.splitn(3, |o| o == '[' || o == ']').collect();
+            let captures = re.captures(operation).unwrap();
 
-            let command_capture = re.captures(parts[0]).unwrap();
-            let command = &command_capture["command"];
-            let transaction = command_capture["transaction"].parse::<u32>().unwrap();
-
-            let resource = match parts.get(1) {
-                Some(value) => value.to_owned(),
-                None => "",
-            };
+            let command = &captures["command"];
+            let transaction = captures["transaction"].parse::<u32>().unwrap();
+            let resource = captures.name("resource").map_or("", |c| c.as_str());
 
             match command {
                 "ls" => Operation::LockShared(command.to_owned(), transaction, resource.to_owned()),
