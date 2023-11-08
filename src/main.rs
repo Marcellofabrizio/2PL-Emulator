@@ -1,4 +1,4 @@
-use regex::Regex;
+use regex::{Match, Regex};
 use std::fs;
 
 #[derive(Debug)]
@@ -16,21 +16,20 @@ enum Operation {
 fn main() {
     let contents = fs::read_to_string("history.txt".to_string()).expect("File not found");
 
-    let re = Regex::new(r"(?P<command>[a-z]+)(?P<transaction>\d+)").unwrap();
+    let re =
+        Regex::new(r"(?P<command>[a-z]+)(?P<transaction>\d+)(\[(?P<resource>[a-z])\])?").unwrap();
 
-    let operations: Vec<Operation> = contents
-        .split("-")
+    let operations: Vec<Operation> = re
+        .captures_iter(&contents)
         .map(|operation| {
-            let parts: Vec<&str> = operation.splitn(3, |o| o == '[' || o == ']').collect();
+            let command = &operation["command"];
+            let transaction = operation["transaction"].parse::<u32>().unwrap();
 
-            let command_capture = re.captures(parts[0]).unwrap();
-            let command = &command_capture["command"];
-            let transaction = command_capture["transaction"].parse::<u32>().unwrap();
+            let mut resource = "";
 
-            let resource = match parts.get(1) {
-                Some(value) => value.to_owned(),
-                None => "",
-            };
+            if let Some(value) = operation.get(3) {
+                resource = value.as_str();
+            }
 
             match command {
                 "ls" => Operation::LockShared(command.to_owned(), transaction, resource.to_owned()),
