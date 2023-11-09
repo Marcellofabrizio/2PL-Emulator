@@ -20,15 +20,27 @@ struct LockInfo {
     exclusive_owner: Option<u32>,
 }
 
+impl LockInfo {
+    fn add_shared_owner(&mut self, shared_owner: u32) {
+        self.shared_owners.push(shared_owner);
+    }
+
+    fn add_exclusive_owner(&mut self, exclusive_owner: u32) {
+        self.exclusive_owner = Some(exclusive_owner);
+    }
+}
+
 fn main() {
     let contents = fs::read_to_string("history.txt".to_string()).expect("File not found");
 
-    let re =
-        Regex::new(r"(?x)
+    let re = Regex::new(
+        r"(?x)
             (?<command>[a-z]+) # O comando: read, write, commit ou abort
             (?<transaction>\d+) # O número da transação
             ([(\[](?<resource>\S+)[)\]])? # Qualquer texto sem espaço entre parenteses ou colchetes
-        ").unwrap();
+        ",
+    )
+    .unwrap();
 
     let operations: Vec<Operation> = contents
         .split("-")
@@ -50,19 +62,19 @@ fn main() {
         .collect();
 
     let mut lock_table: HashMap<String, LockInfo> = HashMap::new();
-    let mut delayed_operations: Vec<Operation>;
+    let mut delayed_operations: Vec<Operation> = vec![];
 
     for op in operations {
+        println!("Operation {:?}", op);
         match op {
-            Operation::Read(transaction, resource) => match lock_table.get(&resource) {
-                Some(&info) => {
+            Operation::Read(transaction, resource) => {
+                if let Some(info) = lock_table.get(&resource) {
                     if info.exclusive_owner.is_some() {
-                        delayed_operations.push(op);
+                        delayed_operations.push(Operation::Read(transaction, resource));
                     } else {
-                        info.shared_owners.push(transaction);
+                        info.add_shared_owner(transaction);
                     }
-                }
-                None => {
+                } else {
                     lock_table.insert(
                         resource,
                         LockInfo {
@@ -71,6 +83,26 @@ fn main() {
                         },
                     );
                 }
+
+                // match lock_table.get(&resource) {
+                // Some(info) => {
+                //     println!("{:?}", info);
+                //     if info.exclusive_owner.is_some() {
+                //         delayed_operations.push(Operation::Read(transaction, resource));
+                //     } else {
+                //         // info.shared_owners.push(transaction);
+                //         info.add_shared_owner(transaction);
+                //     }
+                // }
+                // None => {
+                //     lock_table.insert(
+                //         resource,
+                //         LockInfo {
+                //             shared_owners: vec![transaction],
+                //             exclusive_owner: None,
+                //         },
+                //     );
+                // }
             }
             Operation::Write(transaction, resource) => {
                 println!("(Write)Transaction = {transaction}\tResource = {resource}");
