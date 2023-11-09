@@ -17,7 +17,7 @@ fn main() {
     let contents = fs::read_to_string("history.txt".to_string()).expect("File not found");
 
     let re =
-        Regex::new(r"(?P<command>[a-z]+)(?P<transaction>\d+)(\[(?P<resource>[a-z])\])?").unwrap();
+        Regex::new(r"(?P<command>[a-z]+)(?P<transaction>\d+)(\[((?P<resource>[a-z]))\])?").unwrap();
 
     let operations: Vec<Operation> = re
         .captures_iter(&contents)
