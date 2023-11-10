@@ -68,7 +68,7 @@ fn main() {
         println!("Operation {:?}", op);
         match op {
             Operation::Read(transaction, resource) => {
-                if let Some(info) = lock_table.get(&resource) {
+                if let Some(info) = lock_table.get_mut(&resource) {
                     if info.exclusive_owner.is_some() {
                         delayed_operations.push(Operation::Read(transaction, resource));
                     } else {
@@ -83,26 +83,6 @@ fn main() {
                         },
                     );
                 }
-
-                // match lock_table.get(&resource) {
-                // Some(info) => {
-                //     println!("{:?}", info);
-                //     if info.exclusive_owner.is_some() {
-                //         delayed_operations.push(Operation::Read(transaction, resource));
-                //     } else {
-                //         // info.shared_owners.push(transaction);
-                //         info.add_shared_owner(transaction);
-                //     }
-                // }
-                // None => {
-                //     lock_table.insert(
-                //         resource,
-                //         LockInfo {
-                //             shared_owners: vec![transaction],
-                //             exclusive_owner: None,
-                //         },
-                //     );
-                // }
             }
             Operation::Write(transaction, resource) => {
                 println!("(Write)Transaction = {transaction}\tResource = {resource}");
