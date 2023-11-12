@@ -28,6 +28,69 @@ impl LockInfo {
     fn add_exclusive_owner(&mut self, exclusive_owner: u32) {
         self.exclusive_owner = Some(exclusive_owner);
     }
+
+    fn remove_all(&mut self, transaction: u32) {
+        self.shared_owners.retain(|&t| t != transaction);
+        if self.exclusive_owner.is_some_and(|t| t == transaction) {
+            self.exclusive_owner = None;
+        }
+    }
+}
+
+#[derive(Debug)]
+struct LockTable {
+    lock_table: HashMap<String, LockInfo>,
+}
+
+impl LockTable {
+    fn acquire_shared_lock(&mut self, transaction: u32, resource: &String) -> bool {
+        if let Some(info) = self.lock_table.get_mut(resource) {
+            if info.exclusive_owner.is_some() {
+                return false;
+            } else {
+                info.add_shared_owner(transaction);
+                return true;
+            }
+        } else {
+            self.lock_table.insert(
+                resource.clone(),
+                LockInfo {
+                    shared_owners: vec![transaction],
+                    exclusive_owner: None,
+                },
+            );
+            return true;
+        }
+    }
+
+    fn acquire_exclusive_lock(&mut self, transaction: u32, resource: &String) -> bool {
+        if let Some(info) = self.lock_table.get_mut(resource) {
+            let needs_upgrade =
+                info.shared_owners.len() == 1 && info.shared_owners[0] == transaction;
+
+            if info.exclusive_owner.is_none() && (info.shared_owners.is_empty() || needs_upgrade) {
+                info.add_exclusive_owner(transaction);
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            self.lock_table.insert(
+                resource.clone(),
+                LockInfo {
+                    shared_owners: vec![],
+                    exclusive_owner: Some(transaction),
+                },
+            );
+            return true;
+        }
+    }
+
+    fn remove_locks(&mut self, transaction: u32) {
+        for (_, info) in self.lock_table.iter_mut() {
+            info.remove_all(transaction);
+        }
+    }
 }
 
 fn main() {
@@ -61,39 +124,40 @@ fn main() {
         })
         .collect();
 
-    let mut lock_table: HashMap<String, LockInfo> = HashMap::new();
+    let mut locks = LockTable {
+        lock_table: HashMap::new(),
+    };
     let mut delayed_operations: Vec<Operation> = vec![];
 
     for op in operations {
         println!("Operation {:?}", op);
+        // TODO Antes de executar cada operação, precisa ver se alguma das que tão em delay pode
+        // finalmente executar
         match op {
-            Operation::Read(transaction, resource) => {
-                if let Some(info) = lock_table.get_mut(&resource) {
-                    if info.exclusive_owner.is_some() {
-                        delayed_operations.push(Operation::Read(transaction, resource));
-                    } else {
-                        info.add_shared_owner(transaction);
-                    }
+            Operation::Read(transaction, ref resource) => {
+                if locks.acquire_shared_lock(transaction, &resource) {
+                    // Adicionar a operação na história final
                 } else {
-                    lock_table.insert(
-                        resource,
-                        LockInfo {
-                            shared_owners: vec![transaction],
-                            exclusive_owner: None,
-                        },
-                    );
+                    delayed_operations.push(op);
                 }
             }
-            Operation::Write(transaction, resource) => {
-                println!("(Write)Transaction = {transaction}\tResource = {resource}");
+            Operation::Write(transaction, ref resource) => {
+                if locks.acquire_exclusive_lock(transaction, &resource) {
+                    // Adicionar a operação na história final
+                } else {
+                    delayed_operations.push(op);
+                }
             }
             Operation::Commit(transaction) => {
-                println!("(Commit)Transaction = {transaction}");
+                locks.remove_locks(transaction);
             }
             Operation::Abort(transaction) => {
-                println!("(Commit)Transaction = {transaction}");
+                // Ainda não sei se deveria ter um comportamento diferente aqui
+                locks.remove_locks(transaction);
             }
             _ => return,
         }
+        println!("{:?}", locks);
+        println!("Operações em espera: {:?}\n", delayed_operations);
     }
 }
