@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::{collections::HashMap, fs};
+use std::fs;
 
 #[derive(Debug)]
 enum Operation {
@@ -14,81 +14,94 @@ enum Operation {
     Unknown,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
-struct LockInfo {
-    shared_owners: Vec<u32>,
-    exclusive_owner: Option<u32>,
-}
+// Deve ter um nome melhor pra isso
+mod lock_table {
+    use std::collections::HashMap;
 
-impl LockInfo {
-    fn add_shared_owner(&mut self, shared_owner: u32) {
-        self.shared_owners.push(shared_owner);
+    #[derive(Debug)]
+    pub struct LockTable {
+        lock_table: HashMap<String, LockInfo>,
     }
 
-    fn add_exclusive_owner(&mut self, exclusive_owner: u32) {
-        self.exclusive_owner = Some(exclusive_owner);
-    }
-
-    fn remove_all(&mut self, transaction: u32) {
-        self.shared_owners.retain(|&t| t != transaction);
-        if self.exclusive_owner.is_some_and(|t| t == transaction) {
-            self.exclusive_owner = None;
+    impl LockTable {
+        pub fn new() -> Self {
+            Self {
+                lock_table: HashMap::new(),
+            }
         }
-    }
-}
 
-#[derive(Debug)]
-struct LockTable {
-    lock_table: HashMap<String, LockInfo>,
-}
-
-impl LockTable {
-    fn acquire_shared_lock(&mut self, transaction: u32, resource: &String) -> bool {
-        if let Some(info) = self.lock_table.get_mut(resource) {
-            if info.exclusive_owner.is_some() {
-                return false;
+        pub fn acquire_shared_lock(&mut self, transaction: u32, resource: &String) -> bool {
+            if let Some(info) = self.lock_table.get_mut(resource) {
+                if info.exclusive_owner.is_some() {
+                    return false;
+                } else {
+                    info.add_shared_owner(transaction);
+                    return true;
+                }
             } else {
-                info.add_shared_owner(transaction);
+                self.lock_table.insert(
+                    resource.clone(),
+                    LockInfo {
+                        shared_owners: vec![transaction],
+                        exclusive_owner: None,
+                    },
+                );
                 return true;
             }
-        } else {
-            self.lock_table.insert(
-                resource.clone(),
-                LockInfo {
-                    shared_owners: vec![transaction],
-                    exclusive_owner: None,
-                },
-            );
-            return true;
         }
-    }
 
-    fn acquire_exclusive_lock(&mut self, transaction: u32, resource: &String) -> bool {
-        if let Some(info) = self.lock_table.get_mut(resource) {
-            let needs_upgrade =
-                info.shared_owners.len() == 1 && info.shared_owners[0] == transaction;
+        pub fn acquire_exclusive_lock(&mut self, transaction: u32, resource: &String) -> bool {
+            if let Some(info) = self.lock_table.get_mut(resource) {
+                let needs_upgrade =
+                    info.shared_owners.len() == 1 && info.shared_owners[0] == transaction;
 
-            if info.exclusive_owner.is_none() && (info.shared_owners.is_empty() || needs_upgrade) {
-                info.add_exclusive_owner(transaction);
-                return true;
+                if info.exclusive_owner.is_none()
+                    && (info.shared_owners.is_empty() || needs_upgrade)
+                {
+                    info.add_exclusive_owner(transaction);
+                    return true;
+                } else {
+                    return false;
+                }
             } else {
-                return false;
+                self.lock_table.insert(
+                    resource.clone(),
+                    LockInfo {
+                        shared_owners: vec![],
+                        exclusive_owner: Some(transaction),
+                    },
+                );
+                return true;
             }
-        } else {
-            self.lock_table.insert(
-                resource.clone(),
-                LockInfo {
-                    shared_owners: vec![],
-                    exclusive_owner: Some(transaction),
-                },
-            );
-            return true;
+        }
+
+        pub fn remove_locks(&mut self, transaction: u32) {
+            for (_, info) in self.lock_table.iter_mut() {
+                info.remove_all(transaction);
+            }
         }
     }
 
-    fn remove_locks(&mut self, transaction: u32) {
-        for (_, info) in self.lock_table.iter_mut() {
-            info.remove_all(transaction);
+    #[derive(Debug)]
+    struct LockInfo {
+        shared_owners: Vec<u32>,
+        exclusive_owner: Option<u32>,
+    }
+
+    impl LockInfo {
+        fn add_shared_owner(&mut self, shared_owner: u32) {
+            self.shared_owners.push(shared_owner);
+        }
+
+        fn add_exclusive_owner(&mut self, exclusive_owner: u32) {
+            self.exclusive_owner = Some(exclusive_owner);
+        }
+
+        fn remove_all(&mut self, transaction: u32) {
+            self.shared_owners.retain(|&t| t != transaction);
+            if self.exclusive_owner.is_some_and(|t| t == transaction) {
+                self.exclusive_owner = None;
+            }
         }
     }
 }
@@ -124,9 +137,7 @@ fn main() {
         })
         .collect();
 
-    let mut locks = LockTable {
-        lock_table: HashMap::new(),
-    };
+    let mut locks = lock_table::LockTable::new();
     let mut delayed_operations: Vec<Operation> = vec![];
 
     for op in operations {
