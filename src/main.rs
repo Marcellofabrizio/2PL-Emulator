@@ -51,46 +51,43 @@ fn main() {
 
     for op in operations {
         println!("Operation {:?}", op);
-        
+
+        scheduler.process_operation(op);
+
         // TODO Antes de executar cada operação, precisa ver se alguma das que tão em delay pode
         // finalmente executar
-        let op_to_process = scheduler.delayed_operations.pop();
+        /*
+            TODO: Mover para uma funcão?
+        */
+        let delayed_opp = scheduler.delayed_operations.pop();
+        match delayed_opp {
+            Some(Operation::Read(ref transaction, ref resource)) => {
+                if scheduler.can_process_delayed(resource) {
+                    println!("Reprocessing {:?}", &delayed_opp);
+                    scheduler
+                        .process_operation(Operation::Read(*transaction, resource.to_string()));
+                } else {
+                    println!("Still delayed");
+                    scheduler
+                        .delayed_operations
+                        .push(Operation::Read(*transaction, resource.to_string()));
+                }
+            }
+            Some(Operation::Write(ref transaction, ref resource)) => {
+                if scheduler.can_process_delayed(resource) {
+                    println!("Reprocessing {:?}", &delayed_opp);
+                    scheduler
+                        .process_operation(Operation::Write(*transaction, resource.to_string()));
+                } else {
+                    println!("Still delayed");
+                    scheduler
+                        .delayed_operations
+                        .push(Operation::Write(*transaction, resource.to_string()));
+                }
+            }
+            _ => (),
+        };
 
-        match op {
-            Operation::Read(transaction, ref resource) => {
-                if scheduler.locks.acquire_shared_lock(&transaction, &resource) {
-                    // Adicionar a operação na história final
-                    scheduler
-                        .final_history
-                        .push(Operation::LockShared(transaction, resource.to_owned()));
-                    scheduler.final_history.push(op);
-                } else {
-                    scheduler.delayed_operations.push(op);
-                }
-            }
-            Operation::Write(transaction, ref resource) => {
-                if scheduler
-                    .locks
-                    .acquire_exclusive_lock(&transaction, &resource)
-                {
-                    // Adicionar a operação na história final
-                    scheduler
-                        .final_history
-                        .push(Operation::LockExclusive(transaction, resource.to_owned()));
-                    scheduler.final_history.push(op);
-                } else {
-                    scheduler.delayed_operations.push(op);
-                }
-            }
-            Operation::Commit(transaction) => {
-                scheduler.locks.remove_locks(transaction);
-            }
-            Operation::Abort(transaction) => {
-                // Ainda não sei se deveria ter um comportamento diferente aqui
-                scheduler.locks.remove_locks(transaction);
-            }
-            _ => return,
-        }
         println!("{:?}", scheduler.locks);
         println!("Operações em espera: {:?}\n", scheduler.delayed_operations);
     }

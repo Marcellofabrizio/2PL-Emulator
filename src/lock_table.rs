@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct LockTable {
-    lock_table: HashMap<String, LockInfo>,
+    pub lock_table: HashMap<String, LockInfo>,
 }
 
 impl LockTable {
@@ -63,9 +63,9 @@ impl LockTable {
 }
 
 #[derive(Debug)]
-struct LockInfo {
-    shared_owners: Vec<u32>,
-    exclusive_owner: Option<u32>,
+pub struct LockInfo {
+    pub shared_owners: Vec<u32>,
+    pub exclusive_owner: Option<u32>,
 }
 
 impl LockInfo {
