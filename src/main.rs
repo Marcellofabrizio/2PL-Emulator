@@ -15,7 +15,6 @@ enum Operation {
     Unknown,
 }
 
-// Deve ter um nome melhor pra isso
 fn main() {
     let contents = fs::read_to_string("history.txt".to_string()).expect("File not found");
 
@@ -50,6 +49,8 @@ fn main() {
     let mut locks = lock_table::LockTable::new();
     let mut delayed_operations: Vec<Operation> = vec![];
 
+    let mut final_history: Vec<Operation> = vec![];
+
     for op in operations {
         println!("Operation {:?}", op);
         // TODO Antes de executar cada operação, precisa ver se alguma das que tão em delay pode
@@ -58,6 +59,8 @@ fn main() {
             Operation::Read(transaction, ref resource) => {
                 if locks.acquire_shared_lock(transaction, &resource) {
                     // Adicionar a operação na história final
+                    final_history.push(Operation::LockShared(transaction, resource.to_owned()));
+                    final_history.push(op);
                 } else {
                     delayed_operations.push(op);
                 }
@@ -65,6 +68,8 @@ fn main() {
             Operation::Write(transaction, ref resource) => {
                 if locks.acquire_exclusive_lock(transaction, &resource) {
                     // Adicionar a operação na história final
+                    final_history.push(Operation::LockExclusive(transaction, resource.to_owned()));
+                    final_history.push(op);
                 } else {
                     delayed_operations.push(op);
                 }
@@ -81,4 +86,7 @@ fn main() {
         println!("{:?}", locks);
         println!("Operações em espera: {:?}\n", delayed_operations);
     }
+
+    println!("\n");
+    println!("História final: {:?}\n", final_history);
 }
