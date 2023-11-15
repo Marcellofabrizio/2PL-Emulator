@@ -1,9 +1,10 @@
 use regex::Regex;
 use std::fs;
 mod lock_table;
+mod scheduler;
 
 #[derive(Debug)]
-enum Operation {
+pub enum Operation {
     LockShared(u32, String),
     LockExclusive(u32, String),
     Read(u32, String),
@@ -46,47 +47,54 @@ fn main() {
         })
         .collect();
 
-    let mut locks = lock_table::LockTable::new();
-    let mut delayed_operations: Vec<Operation> = vec![];
-
-    let mut final_history: Vec<Operation> = vec![];
+    let mut scheduler = scheduler::Scheduler::new();
 
     for op in operations {
         println!("Operation {:?}", op);
+        
         // TODO Antes de executar cada operação, precisa ver se alguma das que tão em delay pode
         // finalmente executar
+        let op_to_process = scheduler.delayed_operations.pop();
+
         match op {
             Operation::Read(transaction, ref resource) => {
-                if locks.acquire_shared_lock(transaction, &resource) {
+                if scheduler.locks.acquire_shared_lock(&transaction, &resource) {
                     // Adicionar a operação na história final
-                    final_history.push(Operation::LockShared(transaction, resource.to_owned()));
-                    final_history.push(op);
+                    scheduler
+                        .final_history
+                        .push(Operation::LockShared(transaction, resource.to_owned()));
+                    scheduler.final_history.push(op);
                 } else {
-                    delayed_operations.push(op);
+                    scheduler.delayed_operations.push(op);
                 }
             }
             Operation::Write(transaction, ref resource) => {
-                if locks.acquire_exclusive_lock(transaction, &resource) {
+                if scheduler
+                    .locks
+                    .acquire_exclusive_lock(&transaction, &resource)
+                {
                     // Adicionar a operação na história final
-                    final_history.push(Operation::LockExclusive(transaction, resource.to_owned()));
-                    final_history.push(op);
+                    scheduler
+                        .final_history
+                        .push(Operation::LockExclusive(transaction, resource.to_owned()));
+                    scheduler.final_history.push(op);
                 } else {
-                    delayed_operations.push(op);
+                    scheduler.delayed_operations.push(op);
                 }
             }
             Operation::Commit(transaction) => {
-                locks.remove_locks(transaction);
+                scheduler.locks.remove_locks(transaction);
             }
             Operation::Abort(transaction) => {
                 // Ainda não sei se deveria ter um comportamento diferente aqui
-                locks.remove_locks(transaction);
+                scheduler.locks.remove_locks(transaction);
             }
             _ => return,
         }
-        println!("{:?}", locks);
-        println!("Operações em espera: {:?}\n", delayed_operations);
+        println!("{:?}", scheduler.locks);
+        println!("Operações em espera: {:?}\n", scheduler.delayed_operations);
     }
 
     println!("\n");
-    println!("História final: {:?}\n", final_history);
+    println!("História final: {:?}\n", scheduler.final_history);
 }

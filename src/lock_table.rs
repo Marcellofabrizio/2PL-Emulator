@@ -12,7 +12,7 @@ impl LockTable {
         }
     }
 
-    pub fn acquire_shared_lock(&mut self, transaction: u32, resource: &String) -> bool {
+    pub fn acquire_shared_lock(&mut self, transaction: &u32, resource: &String) -> bool {
         if let Some(info) = self.lock_table.get_mut(resource) {
             if info.exclusive_owner.is_some() {
                 return false;
@@ -24,7 +24,7 @@ impl LockTable {
             self.lock_table.insert(
                 resource.clone(),
                 LockInfo {
-                    shared_owners: vec![transaction],
+                    shared_owners: vec![*transaction],
                     exclusive_owner: None,
                 },
             );
@@ -32,10 +32,10 @@ impl LockTable {
         }
     }
 
-    pub fn acquire_exclusive_lock(&mut self, transaction: u32, resource: &String) -> bool {
+    pub fn acquire_exclusive_lock(&mut self, transaction: &u32, resource: &String) -> bool {
         if let Some(info) = self.lock_table.get_mut(resource) {
             let needs_upgrade =
-                info.shared_owners.len() == 1 && info.shared_owners[0] == transaction;
+                info.shared_owners.len() == 1 && info.shared_owners[0] == *transaction;
 
             if info.exclusive_owner.is_none() && (info.shared_owners.is_empty() || needs_upgrade) {
                 info.add_exclusive_owner(transaction);
@@ -48,7 +48,7 @@ impl LockTable {
                 resource.clone(),
                 LockInfo {
                     shared_owners: vec![],
-                    exclusive_owner: Some(transaction),
+                    exclusive_owner: Some(*transaction),
                 },
             );
             return true;
@@ -69,12 +69,12 @@ struct LockInfo {
 }
 
 impl LockInfo {
-    fn add_shared_owner(&mut self, shared_owner: u32) {
-        self.shared_owners.push(shared_owner);
+    fn add_shared_owner(&mut self, shared_owner: &u32) {
+        self.shared_owners.push(shared_owner.to_owned());
     }
 
-    fn add_exclusive_owner(&mut self, exclusive_owner: u32) {
-        self.exclusive_owner = Some(exclusive_owner);
+    fn add_exclusive_owner(&mut self, exclusive_owner: &u32) {
+        self.exclusive_owner = Some(exclusive_owner.to_owned());
     }
 
     fn remove_all(&mut self, transaction: u32) {
