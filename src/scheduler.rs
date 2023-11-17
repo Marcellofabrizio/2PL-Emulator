@@ -38,9 +38,10 @@ impl Scheduler {
                 }
             }
             Operation::Commit(transaction) => {
-                self.locks.remove_locks(&transaction);
+                let mut unlocks = self.locks.remove_locks(&transaction);
                 self.retry_delayed_operations();
                 self.final_history.push(Operation::Commit(transaction));
+                self.final_history.append(&mut unlocks);
             }
             Operation::Abort(transaction) => {
                 // TODO: Remover as operações dessa transação da história final

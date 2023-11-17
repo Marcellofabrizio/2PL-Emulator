@@ -1,3 +1,4 @@
+use crate::Operation;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -55,10 +56,27 @@ impl LockTable {
         }
     }
 
-    pub fn remove_locks(&mut self, transaction: &u32) {
-        for (_, info) in self.lock_table.iter_mut() {
+    pub fn remove_locks(&mut self, transaction: &u32) -> Vec<Operation> {
+        let mut resources_to_unlock = vec![];
+        for (resource, info) in self.lock_table.iter_mut() {
+            for owner in &info.shared_owners {
+                if owner == transaction {
+                    resources_to_unlock
+                        .push(Operation::UnlockShared(*transaction, resource.to_owned()));
+                }
+            }
+            if let Some(owner) = info.exclusive_owner {
+                if owner == *transaction {
+                    resources_to_unlock.push(Operation::UnlockExclusive(
+                        *transaction,
+                        resource.to_owned(),
+                    ));
+                }
+            }
             info.remove_all(transaction);
         }
+
+        return resources_to_unlock;
     }
 }
 
