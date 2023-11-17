@@ -39,6 +39,7 @@ impl Scheduler {
             }
             Operation::Commit(transaction) => {
                 self.locks.remove_locks(&transaction);
+                self.retry_delayed_operations();
                 self.final_history.push(Operation::Commit(transaction));
             }
             Operation::Abort(transaction) => {

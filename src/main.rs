@@ -52,7 +52,6 @@ fn main() {
     for op in operations {
         println!("Operation {:?}", op);
 
-        scheduler.retry_delayed_operations();
         scheduler.process_operation(op);
 
         println!("{:?}", scheduler.locks);
