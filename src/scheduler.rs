@@ -39,22 +39,23 @@ impl Scheduler {
             }
             Operation::Commit(transaction) => {
                 self.locks.remove_locks(&transaction);
+                self.final_history.push(Operation::Commit(transaction));
             }
             Operation::Abort(transaction) => {
-                // Ainda não sei se deveria ter um comportamento diferente aqui
+                // TODO: Remover as operações dessa transação da história final
                 self.locks.remove_locks(&transaction);
             }
             _ => return,
         }
     }
 
-    pub fn can_process_delayed(&mut self, resource: &String) -> bool {
-        let mut is_still_delayed = false;
+    pub fn retry_delayed_operations(&mut self) {
+        let delayed = self.delayed_operations.clone();
+        self.delayed_operations.clear();
 
-        if let Some(info) = self.locks.lock_table.get_mut(resource) {
-            is_still_delayed = info.exclusive_owner.is_none() && info.shared_owners.is_empty();
+        for op in delayed {
+            println!("Tentando reprocessar {:?}.", op);
+            self.process_operation(op);
         }
-
-        return is_still_delayed;
     }
 }

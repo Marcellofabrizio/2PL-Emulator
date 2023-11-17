@@ -3,7 +3,7 @@ use std::fs;
 mod lock_table;
 mod scheduler;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operation {
     LockShared(u32, String),
     LockExclusive(u32, String),
@@ -21,7 +21,7 @@ fn main() {
 
     let re = Regex::new(
         r"(?x)
-            (?<command>[a-z]+) # O comando: read, write, commit ou abort
+            (?<command>[rwca]+) # O comando: read, write, commit ou abort
             (?<transaction>\d+) # O número da transação
             ([(\[](?<resource>\S+)[)\]])? # Qualquer texto sem espaço entre parenteses ou colchetes
         ",
@@ -52,41 +52,8 @@ fn main() {
     for op in operations {
         println!("Operation {:?}", op);
 
+        scheduler.retry_delayed_operations();
         scheduler.process_operation(op);
-
-        // TODO Antes de executar cada operação, precisa ver se alguma das que tão em delay pode
-        // finalmente executar
-        /*
-            TODO: Mover para uma funcão?
-        */
-        let delayed_opp = scheduler.delayed_operations.pop();
-        match delayed_opp {
-            Some(Operation::Read(ref transaction, ref resource)) => {
-                if scheduler.can_process_delayed(resource) {
-                    println!("Reprocessing {:?}", &delayed_opp);
-                    scheduler
-                        .process_operation(Operation::Read(*transaction, resource.to_string()));
-                } else {
-                    println!("Still delayed");
-                    scheduler
-                        .delayed_operations
-                        .push(Operation::Read(*transaction, resource.to_string()));
-                }
-            }
-            Some(Operation::Write(ref transaction, ref resource)) => {
-                if scheduler.can_process_delayed(resource) {
-                    println!("Reprocessing {:?}", &delayed_opp);
-                    scheduler
-                        .process_operation(Operation::Write(*transaction, resource.to_string()));
-                } else {
-                    println!("Still delayed");
-                    scheduler
-                        .delayed_operations
-                        .push(Operation::Write(*transaction, resource.to_string()));
-                }
-            }
-            _ => (),
-        };
 
         println!("{:?}", scheduler.locks);
         println!("Operações em espera: {:?}\n", scheduler.delayed_operations);
