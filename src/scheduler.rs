@@ -38,11 +38,11 @@ impl Scheduler {
                 }
             }
             Operation::Commit(transaction) => {
-                self.locks.remove_locks(transaction);
+                self.locks.remove_locks(&transaction);
             }
             Operation::Abort(transaction) => {
                 // Ainda não sei se deveria ter um comportamento diferente aqui
-                self.locks.remove_locks(transaction);
+                self.locks.remove_locks(&transaction);
             }
             _ => return,
         }

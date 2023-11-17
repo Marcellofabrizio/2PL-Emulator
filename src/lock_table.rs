@@ -55,7 +55,7 @@ impl LockTable {
         }
     }
 
-    pub fn remove_locks(&mut self, transaction: u32) {
+    pub fn remove_locks(&mut self, transaction: &u32) {
         for (_, info) in self.lock_table.iter_mut() {
             info.remove_all(transaction);
         }
@@ -77,9 +77,10 @@ impl LockInfo {
         self.exclusive_owner = Some(exclusive_owner.to_owned());
     }
 
-    fn remove_all(&mut self, transaction: u32) {
-        self.shared_owners.retain(|&t| t != transaction);
-        if self.exclusive_owner.is_some_and(|t| t == transaction) {
+    fn remove_all(&mut self, transaction: &u32) {
+        self.shared_owners.retain(|t| t != transaction);
+
+        if self.exclusive_owner == Some(*transaction) {
             self.exclusive_owner = None;
         }
     }
