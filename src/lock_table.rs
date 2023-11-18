@@ -14,9 +14,11 @@ impl LockTable {
     }
 
     pub fn acquire_shared_lock(&mut self, transaction: &u32, resource: &String) -> bool {
-        // NOTE: O que acontece se o cara já tem um lock?
         if let Some(info) = self.lock_table.get_mut(resource) {
-            if info.exclusive_owner.is_some() {
+            if info.exclusive_owner.is_some_and(|t| t == *transaction) {
+                println!("Já tinha um lock exclusivo sobre o {resource}.");
+                return true;
+            } else if info.exclusive_owner.is_some() {
                 println!("Não conseguiu um lock compartilhado sobre o {resource}.");
                 return false;
             } else {
@@ -38,12 +40,16 @@ impl LockTable {
     }
 
     pub fn acquire_exclusive_lock(&mut self, transaction: &u32, resource: &String) -> bool {
-        // NOTE: O que acontece se o cara já tem um lock?
         if let Some(info) = self.lock_table.get_mut(resource) {
             let needs_upgrade =
                 info.shared_owners.len() == 1 && info.shared_owners[0] == *transaction;
 
-            if info.exclusive_owner.is_none() && (info.shared_owners.is_empty() || needs_upgrade) {
+            if info.exclusive_owner.is_some_and(|t| t == *transaction) {
+                println!("Já tinha um lock exclusivo sobre o {resource}.");
+                return true;
+            } else if info.exclusive_owner.is_none()
+                && (info.shared_owners.is_empty() || needs_upgrade)
+            {
                 info.add_exclusive_owner(transaction);
                 println!("Conseguiu o lock exclusivo sobre o {resource}.");
                 return true;
