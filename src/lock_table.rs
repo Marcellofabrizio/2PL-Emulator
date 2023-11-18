@@ -14,11 +14,14 @@ impl LockTable {
     }
 
     pub fn acquire_shared_lock(&mut self, transaction: &u32, resource: &String) -> bool {
+        // NOTE: O que acontece se o cara já tem um lock?
         if let Some(info) = self.lock_table.get_mut(resource) {
             if info.exclusive_owner.is_some() {
+                println!("Não conseguiu um lock compartilhado sobre o {resource}.");
                 return false;
             } else {
                 info.add_shared_owner(transaction);
+                println!("Conseguiu um lock compartilhado sobre o {resource}.");
                 return true;
             }
         } else {
@@ -29,19 +32,23 @@ impl LockTable {
                     exclusive_owner: None,
                 },
             );
+            println!("Conseguiu um lock compartilhado sobre o {resource}.");
             return true;
         }
     }
 
     pub fn acquire_exclusive_lock(&mut self, transaction: &u32, resource: &String) -> bool {
+        // NOTE: O que acontece se o cara já tem um lock?
         if let Some(info) = self.lock_table.get_mut(resource) {
             let needs_upgrade =
                 info.shared_owners.len() == 1 && info.shared_owners[0] == *transaction;
 
             if info.exclusive_owner.is_none() && (info.shared_owners.is_empty() || needs_upgrade) {
                 info.add_exclusive_owner(transaction);
+                println!("Conseguiu o lock exclusivo sobre o {resource}.");
                 return true;
             } else {
+                println!("Não conseguiu o lock exclusivo sobre o {resource}.");
                 return false;
             }
         } else {
@@ -52,6 +59,7 @@ impl LockTable {
                     exclusive_owner: Some(*transaction),
                 },
             );
+            println!("Conseguiu o lock exclusivo sobre o {resource}.");
             return true;
         }
     }
@@ -65,18 +73,36 @@ impl LockTable {
                         .push(Operation::UnlockShared(*transaction, resource.to_owned()));
                 }
             }
+            info.unlock_shared(transaction);
+
             if let Some(owner) = info.exclusive_owner {
                 if owner == *transaction {
                     resources_to_unlock.push(Operation::UnlockExclusive(
                         *transaction,
                         resource.to_owned(),
                     ));
+                    info.unlock_exclusive();
                 }
             }
-            info.remove_all(transaction);
         }
 
+        println!("Limpou os locks da transação {transaction}.");
         return resources_to_unlock;
+    }
+
+    pub fn show_state(&self) {
+        println!("Estado da tabela de locks:");
+        for (res, info) in &self.lock_table {
+            print!("\tRecurso '{res}' -> ");
+            if !info.shared_owners.is_empty() {
+                println!("Owners compartilhados: Transação {:?}", info.shared_owners);
+            } else if let Some(owner) = info.exclusive_owner {
+                println!("Owner exclusivo: Transação {:?}", owner);
+            } else {
+                println!();
+            }
+        }
+        println!();
     }
 }
 
@@ -95,11 +121,11 @@ impl LockInfo {
         self.exclusive_owner = Some(exclusive_owner.to_owned());
     }
 
-    fn remove_all(&mut self, transaction: &u32) {
+    fn unlock_shared(&mut self, transaction: &u32) {
         self.shared_owners.retain(|t| t != transaction);
+    }
 
-        if self.exclusive_owner == Some(*transaction) {
-            self.exclusive_owner = None;
-        }
+    fn unlock_exclusive(&mut self) {
+        self.exclusive_owner = None;
     }
 }

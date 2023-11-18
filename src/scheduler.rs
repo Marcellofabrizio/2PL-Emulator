@@ -19,7 +19,6 @@ impl Scheduler {
         match op {
             Operation::Read(transaction, ref resource) => {
                 if self.locks.acquire_shared_lock(&transaction, &resource) {
-                    // Adicionar a operação na história final
                     self.final_history
                         .push(Operation::LockShared(transaction, resource.to_owned()));
                     self.final_history.push(op);
@@ -51,7 +50,22 @@ impl Scheduler {
         }
     }
 
-    pub fn retry_delayed_operations(&mut self) {
+    pub fn show_state(&self) {
+        self.locks.show_state();
+        if self.delayed_operations.len() > 0 {
+            println!("Operações em delay: {:?}", self.delayed_operations);
+        }
+        println!();
+    }
+
+    pub fn show_final_history(&self) {
+        println!("História final:");
+        for op in &self.final_history {
+            println!("\t{:?},", op);
+        }
+    }
+
+    fn retry_delayed_operations(&mut self) {
         let delayed = self.delayed_operations.clone();
         self.delayed_operations.clear();
 

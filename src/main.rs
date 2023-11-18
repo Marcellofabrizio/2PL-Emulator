@@ -19,6 +19,8 @@ pub enum Operation {
 fn main() {
     let contents = fs::read_to_string("history.txt".to_string()).expect("File not found");
 
+    println!("\nHistória inicial: {contents}");
+
     let re = Regex::new(
         r"(?x)
             (?<command>[rwca]+) # O comando: read, write, commit ou abort
@@ -50,14 +52,12 @@ fn main() {
     let mut scheduler = scheduler::Scheduler::new();
 
     for op in operations {
-        println!("Operation {:?}", op);
+        println!("Operação atual: {:?}", op);
 
         scheduler.process_operation(op);
-
-        println!("{:?}", scheduler.locks);
-        println!("Operações em espera: {:?}\n", scheduler.delayed_operations);
+        scheduler.show_state();
+        println!("{}", format!("{:-^100}", ""));
     }
 
-    println!("\n");
-    println!("História final: {:?}\n", scheduler.final_history);
+    scheduler.show_final_history();
 }
